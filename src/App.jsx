@@ -7,10 +7,15 @@ import Dashboard from './components/Dashboard.jsx'
 export default function App() {
   const [page, setPage] = useState('landing')
   const [user, setUser] = useState({ firstName: '', lastName: '', email: '' })
+  const [transitioning, setTransitioning] = useState(false)
 
   const navigate = (targetPage) => {
-    setPage(targetPage)
-    window.scrollTo(0, 0)
+    setTransitioning(true)
+    setTimeout(() => {
+      setPage(targetPage)
+      window.scrollTo(0, 0)
+      setTimeout(() => setTransitioning(false), 50)
+    }, 300)
   }
 
   let content
@@ -20,9 +25,23 @@ export default function App() {
         <SignInPage
           onNavigate={navigate}
           defaultEmail={user.email}
-          onSignIn={({ email }) => {
-            setUser((prev) => ({ ...prev, email }))
-            navigate('dashboard')
+          onSignIn={async ({ email, password }) => {
+            try {
+              const res = await fetch('/api/signin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+              })
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                throw new Error(data.error || 'Sign in failed')
+              }
+              const data = await res.json()
+              setUser({ firstName: data.firstName, lastName: data.lastName, email: data.email })
+              navigate('dashboard')
+            } catch (err) {
+              alert(err.message)
+            }
           }}
         />
       )
@@ -31,9 +50,29 @@ export default function App() {
       content = (
         <SignUpPage
           onNavigate={navigate}
-          onSignUp={({ firstName, lastName, email }) => {
-            setUser({ firstName, lastName, email })
-            navigate('signIn')
+          onSignUp={async ({ firstName, lastName, email, password }) => {
+            try {
+              const res = await fetch('/api/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ firstName, lastName, email, password })
+              })
+              if (res.status === 409) {
+                const data = await res.json().catch(() => ({}))
+                alert(data.error || 'Account already exists')
+                return
+              }
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                throw new Error(data.error || 'Sign up failed')
+              }
+              const data = await res.json()
+              setUser({ firstName: data.firstName, lastName: data.lastName, email: data.email })
+              alert('Account created successfully! Please sign in.')
+              navigate('signIn')
+            } catch (err) {
+              alert(err.message)
+            }
           }}
         />
       )
@@ -47,7 +86,9 @@ export default function App() {
 
   return (
     <div className="antialiased">
-      {content}
+      <div className={`transition-opacity duration-300 ${transitioning ? 'opacity-0' : 'opacity-100'}`}>
+        {content}
+      </div>
     </div>
   )
 }

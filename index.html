@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Toonify</title>
+    <title>DreamInk</title>
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -13,8 +13,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     
     <style>
+        html {
+            scroll-behavior: smooth;
+        }
+        
         body {
             font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
         }
 
         /* Custom animation for the text description */
@@ -30,6 +35,46 @@
         }
         .animate-fadeIn {
           animation: fadeIn 0.5s ease-in-out;
+        }
+
+        /* Shimmer animation for cards */
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%) translateY(-50%) skewX(-12deg);
+          }
+          100% {
+            transform: translateX(200%) translateY(-50%) skewX(-12deg);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+
+        /* Float animation for active card - subtle vertical movement on inner element */
+        @keyframes floatCard {
+          0%, 100% {
+            transform: translateZ(0) translateY(-8px);
+          }
+          50% {
+            transform: translateZ(0) translateY(-18px);
+          }
+        }
+        .animate-float {
+          animation: floatCard 4s ease-in-out infinite;
+        }
+
+        /* 3D Perspective utilities */
+        .perspective-1000 {
+          perspective: 1000px;
+        }
+        .transform-gpu {
+          transform: translateZ(0);
+          will-change: transform;
+        }
+
+        /* Smooth scroll behavior */
+        * {
+            scroll-behavior: smooth;
         }
     </style>
 </head>
