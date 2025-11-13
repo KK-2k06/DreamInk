@@ -174,15 +174,25 @@ def generate_comic(init_image):
 
 def generate_ghibli(init_image):
     session = get_pipeline("ghibli")
+
+    # Resize + convert to numpy RGB
     img = init_image.resize((512, 512)).convert("RGB")
-    img_np = np.array(img).astype(np.float32) / 255.0
-    img_np = np.expand_dims(np.transpose(img_np, (2, 0, 1)), 0)
 
-    # ✔ Correct input key for AnimeGANv3
-    output = session.run(None, {"AnimeGANv3_input:0": img_np})[0][0]
+    # AnimeGAN expects float32 in range [-1, 1] with shape (1, 512, 512, 3)
+    img_np = np.asarray(img).astype(np.float32)
+    img_np = img_np / 127.5 - 1.0      # scale to [-1,1]
+    img_np = np.expand_dims(img_np, axis=0)   # → (1,512,512,3)
 
-    output = np.clip(np.transpose(output, (1, 2, 0)) * 255, 0, 255).astype(np.uint8)
-    return Image.fromarray(output)
+    # ✔ Correct input name
+    input_name = session.get_inputs()[0].name
+
+    out = session.run(None, {input_name: img_np})[0][0]
+
+    # Output is in [-1,1], convert back
+    out = ((out + 1) * 127.5).clip(0, 255).astype(np.uint8)
+
+    return Image.fromarray(out)
+
 
 def generate_oil_pastel(file):
     np_img = np.frombuffer(file.read(), np.uint8)
