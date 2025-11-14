@@ -9,10 +9,13 @@ export default function Dashboard({ user, onNavigate }) {
   const [outputImage, setOutputImage] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const fileInputRef = useRef(null)
 
   // 🔗 Replace this with your backend's ngrok URL
-  const BACKEND_URL = "backend's_ngrok_url"
+  const BACKEND_URL = "backend_url"
 
   const handleStyleSelect = (style) => {
     setSelectedStyle(style)
@@ -58,6 +61,7 @@ export default function Dashboard({ user, onNavigate }) {
       const response = await fetch(uploadedImage)
       const blob = await response.blob()
       formData.append('image', blob, 'upload.png')
+      formData.append('user_id', user.id) // Add user_id for history
 
       const res = await fetch(`${BACKEND_URL}/api/style/${endpoint}`, {
         method: 'POST',
@@ -79,6 +83,44 @@ export default function Dashboard({ user, onNavigate }) {
       setErrorMessage('Error connecting to backend. Try again.')
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/history/${user.id}`)
+      const data = await res.json()
+      if (res.ok) {
+        setHistory(data.history || [])
+      }
+    } catch (err) {
+      console.error('Error fetching history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleShowHistory = () => {
+    setSelectedStyle(null)
+    setUploadedImage(null)
+    setOutputImage(null)
+    setShowHistory(true)
+    fetchHistory()
+  }
+
+  const handleBackFromHistory = () => {
+    setShowHistory(false)
+  }
+
+  const handleDeleteHistory = async (historyId) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/history/${historyId}`, {
+        method: 'DELETE'
+      })
+      fetchHistory() // Refresh history
+    } catch (err) {
+      console.error('Error deleting history:', err)
     }
   }
 
@@ -130,18 +172,106 @@ export default function Dashboard({ user, onNavigate }) {
               </h1>
               <p className="text-sm text-gray-600 mt-1">Welcome, {displayName}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-md hover:shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleShowHistory}
+                className="px-5 py-2.5 text-sm font-semibold text-indigo-600 bg-white/90 rounded-lg shadow-sm hover:bg-white hover:shadow-md transition-all duration-200"
+              >
+                History
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-md hover:shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-24 py-8 pt-28">
-        {!selectedStyle && (
+        {/* History Page */}
+        {showHistory ? (
+          <div className="animate-fadeIn">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Your History</h2>
+                <p className="text-gray-600">View and download your previously generated images</p>
+              </div>
+              <button
+                onClick={handleBackFromHistory}
+                className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white/70 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg hover:bg-white/90 transition-all duration-200"
+              >
+                ← Back to Dashboard
+              </button>
+            </div>
+
+            {loadingHistory ? (
+              <div className="text-center py-20">
+                <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent mb-4"></div>
+                <p className="text-gray-600 text-lg">Loading your history...</p>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-12 text-center shadow-lg">
+                <svg className="mx-auto h-24 w-24 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-gray-600 text-xl mb-2">No history yet</p>
+                <p className="text-gray-500">Start creating amazing images to see them here!</p>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {history.map((item) => (
+                  <div key={item.id} className="bg-white/70 backdrop-blur-sm rounded-lg shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+                    <div className="relative">
+                      <img
+                        src={`data:image/png;base64,${item.transformed_image}`}
+                        alt={item.style}
+                        className="w-full h-64 object-cover"
+                      />
+                      <div className="absolute top-3 right-3 bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                        {item.style.toUpperCase()}
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {new Date(item.created_at).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      <div className="flex gap-2">
+                        <a
+                          href={`data:image/png;base64,${item.transformed_image}`}
+                          download={`ai-transform-${item.style}-${item.id}.png`}
+                          className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg hover:from-indigo-700 hover:to-purple-700 text-center transition-all duration-200 shadow-md hover:shadow-lg"
+                        >
+                          Download
+                        </a>
+                        <button
+                          onClick={() => handleDeleteHistory(item.id)}
+                          className="px-4 py-2.5 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors shadow-sm"
+                          title="Delete"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : !selectedStyle && (
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Choose Your Art Style</h2>
             <p className="text-gray-600 mb-6">Select a style to transform your image</p>

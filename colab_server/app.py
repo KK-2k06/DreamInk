@@ -34,6 +34,17 @@ def ensure_schema():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS image_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            style TEXT NOT NULL,
+            original_image TEXT NOT NULL,
+            transformed_image TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
     conn.close()
 
 # ==========================================================
@@ -199,7 +210,8 @@ def generate_oil_pastel(file):
     img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     grainy_oil = cv2.xphoto.oilPainting(img_rgb, size=2, dynRatio=1)
-    _, buffer = cv2.imencode('.png', grainy_oil)
+    grainy_bgr = cv2.cvtColor(grainy_oil, cv2.COLOR_RGB2BGR)
+    _, buffer = cv2.imencode('.png', grainy_bgr)
     return base64.b64encode(buffer).decode('utf-8')
 
 def generate_sketch(file):
@@ -223,36 +235,104 @@ def stylize(style):
         return jsonify({"error": "No image uploaded"}), 400
 
     file = request.files["image"]
+    user_id = request.form.get("user_id")  # Get user_id from form data
 
     try:
+        # Read original image for history
+        file.seek(0)
+        original_img_bytes = file.read()
+        original_img_base64 = base64.b64encode(original_img_bytes).decode("utf-8")
+        
+        # Reset file pointer for processing
+        file.seek(0)
+        
         if style == "sketch":
-            return jsonify({"image": generate_sketch(file)})
-
-        if style == "oil":
-            return jsonify({"image": generate_oil_pastel(file)})
-
-        init_image = Image.open(file.stream).convert("RGB").resize((512, 512))
-
-        if style == "pixar":
-            img = generate_pixar(init_image)
-        elif style == "cartoon":
-            img = generate_cartoon(init_image)
-        elif style == "comic":
-            img = generate_comic(init_image)
-        elif style == "ghibli":
-            img = generate_ghibli(init_image)
+            transformed_img_base64 = generate_sketch(file)
+        elif style == "oil":
+            transformed_img_base64 = generate_oil_pastel(file)
         else:
-            return jsonify({"error": f"Invalid style '{style}'"}), 400
+            init_image = Image.open(file.stream).convert("RGB").resize((512, 512))
 
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            if style == "pixar":
+                img = generate_pixar(init_image)
+            elif style == "cartoon":
+                img = generate_cartoon(init_image)
+            elif style == "comic":
+                img = generate_comic(init_image)
+            elif style == "ghibli":
+                img = generate_ghibli(init_image)
+            else:
+                return jsonify({"error": f"Invalid style '{style}'"}), 400
 
-        return jsonify({"image": img_base64})
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            transformed_img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        # Save to history if user_id is provided
+        if user_id:
+            try:
+                conn = get_db_connection()
+                conn.execute(
+                    'INSERT INTO image_history (user_id, style, original_image, transformed_image) VALUES (?, ?, ?, ?)',
+                    (int(user_id), style, original_img_base64, transformed_img_base64)
+                )
+                conn.commit()  # Commit the transaction
+                conn.close()
+                print(f"✅ History saved for user {user_id}, style: {style}")
+            except Exception as e:
+                print(f"⚠️ Failed to save history: {e}")
+                import traceback
+                traceback.print_exc()
+
+        return jsonify({"image": transformed_img_base64})
 
     except Exception as e:
         print("❌ Error:", e)
         return jsonify({"error": str(e)}), 500
+
+# ==========================================================
+# 📜 HISTORY ENDPOINTS
+# ==========================================================
+@app.route("/api/history/<int:user_id>", methods=["GET"])
+def get_history(user_id):
+    """Get all image history for a user"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.execute(
+            'SELECT id, style, original_image, transformed_image, created_at FROM image_history WHERE user_id = ? ORDER BY created_at DESC',
+            (user_id,)
+        )
+        history = cursor.fetchall()
+        conn.close()
+
+        result = []
+        for row in history:
+            result.append({
+                'id': row[0],
+                'style': row[1],
+                'original_image': row[2],
+                'transformed_image': row[3],
+                'created_at': row[4]
+            })
+
+        return jsonify({'history': result})
+    except Exception as e:
+        print("❌ Error fetching history:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/history/<int:history_id>", methods=["DELETE"])
+def delete_history(history_id):
+    """Delete a specific history item"""
+    try:
+        conn = get_db_connection()
+        conn.execute('DELETE FROM image_history WHERE id = ?', (history_id,))
+        conn.close()
+        return jsonify({'message': 'History item deleted successfully'})
+    except Exception as e:
+        print("❌ Error deleting history:", e)
+        return jsonify({"error": str(e)}), 500
+
 
 # ==========================================================
 # 🏠 ROOT ENDPOINT
