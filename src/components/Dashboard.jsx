@@ -15,7 +15,15 @@ export default function Dashboard({ user, onNavigate }) {
   const fileInputRef = useRef(null)
 
   // 🔗 Replace this with your backend's ngrok URL
-  const BACKEND_URL = "backend_url"
+  const BACKEND_URL = "http://127.0.0.1:3001"
+
+  // Helper: ensure base64 has data URI prefix (works with raw base64 or full data URI)
+  const cleanBase64 = (b64) => {
+    if (!b64) return ''
+    if (typeof b64 !== 'string') return ''
+    if (b64.trim().startsWith('data:')) return b64
+    return `data:image/png;base64,${b64}`
+  }
 
   const handleStyleSelect = (style) => {
     setSelectedStyle(style)
@@ -71,6 +79,7 @@ export default function Dashboard({ user, onNavigate }) {
       const data = await res.json()
 
       if (res.ok && data.image) {
+        // support both raw base64 and data URI from backend
         const imageUrl = data.image.startsWith('data:image')
           ? data.image
           : `data:image/png;base64,${data.image}`
@@ -92,7 +101,15 @@ export default function Dashboard({ user, onNavigate }) {
       const res = await fetch(`${BACKEND_URL}/api/history/${user.id}`)
       const data = await res.json()
       if (res.ok) {
-        setHistory(data.history || [])
+        // normalize base64 to always be a valid data URI
+        const hist = (data.history || []).map(item => ({
+          ...item,
+          transformed_image: cleanBase64(item.transformed_image),
+          original_image: cleanBase64(item.original_image)
+        }))
+        setHistory(hist)
+      } else {
+        console.error('Failed to fetch history', data)
       }
     } catch (err) {
       console.error('Error fetching history:', err)
@@ -215,7 +232,7 @@ export default function Dashboard({ user, onNavigate }) {
             ) : history.length === 0 ? (
               <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-12 text-center shadow-lg">
                 <svg className="mx-auto h-24 w-24 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p className="text-gray-600 text-xl mb-2">No history yet</p>
                 <p className="text-gray-500">Start creating amazing images to see them here!</p>
@@ -226,7 +243,7 @@ export default function Dashboard({ user, onNavigate }) {
                   <div key={item.id} className="bg-white/70 backdrop-blur-sm rounded-lg shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
                     <div className="relative">
                       <img
-                        src={`data:image/png;base64,${item.transformed_image}`}
+                        src={item.transformed_image}
                         alt={item.style}
                         className="w-full h-64 object-cover"
                       />
@@ -249,7 +266,7 @@ export default function Dashboard({ user, onNavigate }) {
                       </p>
                       <div className="flex gap-2">
                         <a
-                          href={`data:image/png;base64,${item.transformed_image}`}
+                          href={item.transformed_image}
                           download={`ai-transform-${item.style}-${item.id}.png`}
                           className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg hover:from-indigo-700 hover:to-purple-700 text-center transition-all duration-200 shadow-md hover:shadow-lg"
                         >
