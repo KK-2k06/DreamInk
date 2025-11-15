@@ -4,9 +4,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlitecloud, bcrypt, torch, os, io, base64, cv2, numpy as np
-#from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline
 from PIL import Image
-#import onnxruntime as ort  # For Ghibli
+import onnxruntime as ort  # For Ghibli
 
 # ==========================================================
 # ⚙️ FLASK SETUP
@@ -20,7 +20,7 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
     return response
 
-SQLITE_CLOUD_URL = "sqlitecloud://cas86lwkvk.g3.sqlite.cloud:8860/my-database?apikey=DtB8frekkqMtjHjiAwCmuxKrbvyroQSwEWYOGyQu1RE"
+SQLITE_CLOUD_URL = "sqlitecloud://cas86lwkvk.g3.sqlite.cloud:8860/my-database?apikey=API KEY"
 
 # ==========================================================
 # 🧩 DATABASE SETUP
