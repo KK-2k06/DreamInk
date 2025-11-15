@@ -16,8 +16,11 @@ CORS(app)
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning"  # ✅ Added ngrok header
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    # ✅ Ensure Content-Type is preserved for JSON responses
+    if 'Content-Type' not in response.headers:
+        response.headers['Content-Type'] = 'application/json'
     return response
 
 SQLITE_CLOUD_URL = "sqlitecloud://cas86lwkvk.g3.sqlite.cloud:8860/my-database?apikey=API KEY"
