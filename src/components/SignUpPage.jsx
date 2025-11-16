@@ -91,7 +91,7 @@ export default function SignUpPage({ onNavigate, onSignUp }) {
             onClick={() => onNavigate('landing')}
             className="text-4xl font-black text-center bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-rose-600 bg-clip-text text-transparent cursor-pointer"
           >
-            DreamInk
+            AI Image Transformation
           </h2>
           <h3 className="mt-2 text-2xl font-bold text-center text-gray-900">
             Create your account
